@@ -1,0 +1,130 @@
+# Modern Data Warehouse Configuration File
+# ==========================================
+
+database:
+  server: "localhost"  # Update with your SQL Server instance
+  database: "DataWarehouse"
+  trusted_connection: true
+  driver: "ODBC Driver 17 for SQL Server"
+  # For SQL Server Authentication, uncomment and set:
+  # username: "your_username"
+  # password: "your_password"
+  # trusted_connection: false
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: "logs/pipeline.log"
+  max_file_size: 10485760  # 10MB
+  backup_count: 5
+
+pipeline:
+  batch_size: 10000
+  max_retries: 3
+  retry_delay: 30  # seconds
+  timeout: 300     # seconds
+  parallel_jobs: 4
+  enable_incremental: true
+
+data_sources:
+  crm_path: "datasets/source_crm/"
+  erp_path: "datasets/source_erp/"
+  archive_path: "datasets/archive/"
+  
+  # File patterns for data sources
+  file_patterns:
+    crm:
+      customers: "cust_info.csv"
+      products: "prd_info.csv" 
+      sales: "sales_details.csv"
+    erp:
+      customers: "CUST_AZ12.csv"
+      locations: "LOC_A101.csv"
+      categories: "PX_CAT_G1V2.csv"
+
+data_quality:
+  enable_validation: true
+  validation_rules:
+    customers:
+      required_fields: ["cst_id", "cst_key"]
+      uniqueness_check: ["cst_id"]
+      data_types:
+        cst_id: "int"
+        cst_create_date: "date"
+    products:
+      required_fields: ["prd_id", "prd_key"] 
+      uniqueness_check: ["prd_id"]
+    sales:
+      required_fields: ["sls_ord_num", "sls_cust_id"]
+      range_checks:
+        sls_quantity: [1, 1000]
+        sls_price: [0, 100000]
+
+monitoring:
+  enable_alerts: true
+  alert_threshold: 0.95
+  email_notifications: false
+  
+  # Monitoring thresholds
+  thresholds:
+    pipeline_duration: 600  # seconds
+    error_rate: 0.05       # 5%
+    data_volume_change: 0.2 # 20%
+    
+  # Metrics to track
+  metrics:
+    - "pipeline_duration"
+    - "records_processed"
+    - "error_count"
+    - "data_quality_score"
+
+performance:
+  enable_indexing: true
+  enable_compression: true
+  enable_partitioning: true
+  
+  # Index recommendations
+  indexes:
+    bronze:
+      - table: "crm_sales_details"
+        columns: ["sls_cust_id", "sls_order_dt"]
+    silver:
+      - table: "crm_sales_details"
+        columns: ["sls_cust_id", "sls_order_dt", "dwh_create_date"]
+    gold:
+      - table: "fact_sales"
+        columns: ["customer_key", "product_key", "order_date"]
+
+security:
+  enable_encryption: true
+  mask_sensitive_data: true
+  audit_logging: true
+  
+  # Sensitive fields to mask
+  sensitive_fields:
+    - "customer_name"
+    - "birthdate"
+    - "email"
+
+# Environment-specific overrides
+environments:
+  development:
+    database:
+      server: "localhost"
+    logging:
+      level: "DEBUG"
+  
+  staging:
+    database:
+      server: "staging-server"
+    monitoring:
+      enable_alerts: false
+  
+  production:
+    database:
+      server: "prod-server"
+    logging:
+      level: "WARNING"
+    monitoring:
+      enable_alerts: true
+      email_notifications: true
